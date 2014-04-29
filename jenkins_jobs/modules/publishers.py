@@ -255,6 +255,26 @@ def trigger_parameterized_builds(parser, xml_parent, data):
                                                 'triggerWithNoParameters')
         trigger_with_no_params.text = 'false'
 
+def flexible_publisher(parser, xml_parent, data):
+    logger = logging.getLogger(__name__)
+    fPublisher = XML.SubElement(xml_parent, 'org.jenkins__ci.plugins.flexible__publish.FlexiblePublisher')
+    publishers = XML.SubElement(fPublisher, 'publishers')
+
+    # logger.error(data)
+
+    conditionalPublisher = XML.SubElement(publishers, 'org.jenkins__ci.plugins.flexible__publish.ConditionalPublisher')
+    boolCondition = XML.SubElement(conditionalPublisher, 'condition', {'class': 'org.jenkins_ci.plugins.run_condition.core.BooleanCondition'})
+    boolConditionToken = XML.SubElement(boolCondition, 'token')
+    boolConditionToken.text = data['condition']
+
+    tmpParent = XML.Element('temp')
+    trigger_parameterized_builds(parser, tmpParent, data['publisher'])
+
+    for child in tmpParent:
+      logger.error(child)
+      publisher = XML.SubElement(conditionalPublisher, 'publisher', {'class': child.tag})
+      publisher.append(child.find('*'))
+      
 
 def trigger(parser, xml_parent, data):
     """yaml: trigger
