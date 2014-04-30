@@ -255,25 +255,57 @@ def trigger_parameterized_builds(parser, xml_parent, data):
                                                 'triggerWithNoParameters')
         trigger_with_no_params.text = 'false'
 
+
 def flexible_publisher(parser, xml_parent, data):
+    """yaml: flexible-publisher
+    Conditionally execute publishers. Requires the Jenkins
+    `Flexible Publish plugin
+    <https://wiki.jenkins-ci.org/display/JENKINS/Flexible+Publish+Plugin>`_.
+
+
+    Example:
+
+      publishers:
+        - flexible-publisher:
+            - condition: "x == 2"            
+              publisher:   
+                trigger-parameterized-builds:       
+                  - project: 'other-project'
+                    condition: 'SUCCESS'
+                    current-parameters: true
+                    predefined-parameters: foo=bar2  
+            - condition: "x == 3"            
+              publisher:   
+                html-publisher:
+                  name: "some name"
+                  dir: "path/"
+                  files: "index.html"
+                  keep-all: true
+                  allow-missing: true
+    """
+
+    def create_publisher(parser, publisher_data):
+        dummy_parent = XML.Element("dummy")
+        parser.registry.dispatch('publisher', parser, dummy_parent, publisher_data)
+        return list(dummy_parent)
+
+    def build_publisher(xml_parent, publisher_data):
+        for edited_node in create_publisher(parser, publisher_data):            
+            edited_node.set('class', edited_node.tag)
+            edited_node.tag = 'publisher'
+            xml_parent.append(edited_node)
+    
     logger = logging.getLogger(__name__)
     fPublisher = XML.SubElement(xml_parent, 'org.jenkins__ci.plugins.flexible__publish.FlexiblePublisher')
     publishers = XML.SubElement(fPublisher, 'publishers')
 
-    # logger.error(data)
+    for action_data in data:
+      conditionalPublisher = XML.SubElement(publishers, 'org.jenkins__ci.plugins.flexible__publish.ConditionalPublisher')
+      boolCondition = XML.SubElement(conditionalPublisher, 'condition', {'class': 'org.jenkins_ci.plugins.run_condition.core.BooleanCondition'})
+      boolConditionToken = XML.SubElement(boolCondition, 'token')
+      boolConditionToken.text = action_data['condition']
 
-    conditionalPublisher = XML.SubElement(publishers, 'org.jenkins__ci.plugins.flexible__publish.ConditionalPublisher')
-    boolCondition = XML.SubElement(conditionalPublisher, 'condition', {'class': 'org.jenkins_ci.plugins.run_condition.core.BooleanCondition'})
-    boolConditionToken = XML.SubElement(boolCondition, 'token')
-    boolConditionToken.text = data['condition']
-
-    tmpParent = XML.Element('temp')
-    trigger_parameterized_builds(parser, tmpParent, data['publisher'])
-
-    for child in tmpParent:
-      logger.error(child)
-      publisher = XML.SubElement(conditionalPublisher, 'publisher', {'class': child.tag})
-      publisher.append(child.find('*'))
+      build_publisher(conditionalPublisher, action_data['publisher'])
       
 
 def trigger(parser, xml_parent, data):
